@@ -1,41 +1,56 @@
 import os
+import json
 from PIL import Image
-from database import check_duplicate_image
 
 
 def process_images(folder_path, defect):
-    print("Processing images...")
     image_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(".jpg")]
+    file_renaming_counter = 1
+    image_data = []
 
-    for file_path in image_files:
-        print(f"Processing image: {file_path}")
-        if not check_duplicate_image(file_path):
-            print(f"Image {file_path} is not a duplicate.")
-            metadata = extract_metadata(file_path)
-            print("Metadata:", metadata)
-        else:
-            print(f"Image {file_path} is a duplicate. Skipping...")
-    if defect is None:
-        print("Defect not specified")
-    else:
-        print(defect)
+    for image in image_files:
+        print(f"image: {image}")
+        timestamp = get_timestamp(image)
+        exif = get_exif(image)
+        file_renaming_counter = rename_files(image, defect, file_renaming_counter, folder_path)
+
+        image_data.append({
+            "file_name": f"{defect}_{file_renaming_counter}.jpg",
+            "timestamp": timestamp,
+            "exif": exif,
+            "defect": defect
+        })
+    print(image_data)
+    return image_data
 
 
-def extract_metadata(file_path):
+def get_exif(file_path):
     try:
         image = Image.open(file_path)
-        exif_data = image.getexif()
-        print(f"EXIF data for {file_path}: {exif_data}")
+        exif_data = {k: v for k, v in image.getexif().items() if isinstance(v, (bytes, str))}
     except IOError:
         print(f"Cannot open image at {file_path}.")
-        return {"timestamp": "Unknown"}
+        return json.dumps({"Unknown"})
+    return json.dumps(exif_data)
+
+
+def get_timestamp(file_path):
+    try:
+        image = Image.open(file_path)
+    except IOError:
+        print(f"Cannot open image at {file_path}.")
+        return {"Unknown"}
     try:
         timestamp = image.getexif().get(306, "Unknown")
     except KeyError:
         print(f"EXIF data does not contain timestamp for {file_path}.")
-        return {"timestamp": "Unknown"}
+        return {"Unknown"}
 
-    metadata = {
-        "timestamp": timestamp
-    }
-    return metadata
+    return timestamp
+
+
+def rename_files(original_path, defect, counter, folder_path):
+    new_file_name = f"{defect}_{counter}.jpg"
+    new_file_path = os.path.join(folder_path, new_file_name)
+    os.rename(original_path, new_file_path)
+    return counter + 1

@@ -1,26 +1,53 @@
 import psycopg
 
-cur = None
-conn = None
+conn = psycopg.connect(
+    dbname="soy_beans",
+    user="vaecherdt"
+)
 
-try:
-    with psycopg.connect(
-            "dbname=graos_soja "
-            "user=vaecherdt"
-    ) as conn:
-        if conn.closed:
-            print("Connection to the database failed.")
-        else:
-            print("Connection to the database successful.")
-            with conn.cursor() as cur:
-                cur.execute("")
-except psycopg.OperationalError as operational_error:
-    print(f"Operational error occurred: {operational_error}")
-except psycopg.DatabaseError as database_error:
-    print(f"Database error occurred: {database_error}")
+cur = conn.cursor()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS images (
+        id SERIAL PRIMARY KEY,
+        file_name TEXT NOT NULL,
+        timestamp TEXT,
+        exif TEXT,
+        defect TEXT,
+        notes TEXT
+    );
+""")
+conn.commit()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS grains (
+        id SERIAL PRIMARY KEY,
+        image_id INTEGER REFERENCES images(id),
+        region TEXT,
+        cooperative TEXT,
+        harvest_information TEXT,
+        timestamp TIMESTAMP
+    );
+""")
+conn.commit()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS climate (
+        id SERIAL PRIMARY KEY,
+        grains_id INTEGER REFERENCES grains(id),
+        temperature FLOAT,
+        humidity FLOAT,
+        weather_conditions TEXT,
+        timestamp TIMESTAMP
+    );
+""")
+conn.commit()
 
 
-def check_duplicate_image(file_path):
-    print(f"Checking for duplicate image: {file_path}")
-    # Implement database query to check for duplicate items
-    pass
+def save_image_data(image_data):
+    for data in image_data:
+        cur.execute("""
+            INSERT INTO images (file_name, timestamp, exif, defect)
+            VALUES (%s, %s, %s, %s)
+        """, (data["file_name"], data["defect"], data["timestamp"], data["exif"]))
+    conn.commit()
